@@ -73,10 +73,7 @@ export default function Login() {
         </form>
 
         <p className="text-center mt-4 text-sm text-gray-600">
-          Don't have an account?{' '}
-          <a href="/register" className="text-primary-600 hover:underline">
-            Register
-          </a>
+          Use username: <span className="font-mono bg-gray-100 px-2 py-1 rounded">admin</span> and password: <span className="font-mono bg-gray-100 px-2 py-1 rounded">admin123</span>
         </p>
       </Card>
     </div>
