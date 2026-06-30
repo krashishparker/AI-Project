@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: resume_chat_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: resume_chat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - resume_chat_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: resume_chat_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - resume_chat_network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume_chat_backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/resume_chat
+      REDIS_URL: redis://redis:6379/0
+      OLLAMA_BASE_URL: http://ollama:11434
+      SECRET_KEY: your-secret-key-change-in-production
+      DEBUG: "True"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/uploads
+      - backend_chroma:/app/chroma_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    networks:
+      - resume_chat_network
+
+  # Ollama AI Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: resume_chat_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    networks:
+      - resume_chat_network
+    # Uncomment to pull models on startup
+    # command: >
+    #   sh -c "ollama serve & 
+    #   sleep 10 && 
+    #   ollama pull nomic-embed-text && 
+    #   ollama pull llama3 && 
+    #   wait"
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile
+    container_name: resume_chat_frontend
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend-react:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - resume_chat_network
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:
+  backend_uploads:
+  backend_chroma:
+
+networks:
+  resume_chat_network:
+    driver: bridge
